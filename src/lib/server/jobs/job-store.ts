@@ -3934,10 +3934,10 @@ export async function mockPayJob(input: {
       await import("@/lib/server/callout/estimate");
     mockQuote = (await estimateCalloutQuote(job, mockQuote)) ?? mockQuote;
   }
-  const mockLabourMinor = toMinorUnits(job.agreedMajor, job.currency);
-  const mockSplit = splitMinor(mockLabourMinor);
   const mockPayable = composeCustomerPayableMajor(job.agreedMajor, mockQuote);
+  const mockLabourMinor = toMinorUnits(job.agreedMajor, job.currency);
   const amountMinor = toMinorUnits(mockPayable.totalMajor, job.currency);
+  const mockSplit = splitMinor(amountMinor);
   const calloutMinor = toMinorUnits(mockPayable.calloutMajor, job.currency);
   const split = {
     ...mockSplit,

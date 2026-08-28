@@ -432,12 +432,11 @@ export function MotoristReleasePayGate() {
       fallbackQuote: (pending as any).calloutQuote ?? (pending as any).callout_quote,
     });
     const total = displayTotal ?? 0;
-    const rawCallout = Number((calloutQuote ?? (pending as any).calloutQuote)?.calloutFee ?? 0);
-    const calloutMajor = Number.isFinite(rawCallout) && rawCallout > 0 ? rawCallout : 0;
-    const labourMajor = total - calloutMajor > 0 ? total - calloutMajor : pending.agreedMajor ?? 0;
-    // Service S splits 87.5/5/7.5; the call-out goes to the pro in full.
-    const proShare = Math.round(labourMajor * 0.875 * 100) / 100 + calloutMajor;
-    const platformShare = Math.round(labourMajor * 0.05 * 100) / 100;
+    const calloutMajor = 0;
+    const labourMajor = total > 0 ? total : pending.agreedMajor ?? 0;
+    // Total splits 87.5/5/7.5 on overall payment (labour + callout) per user request
+    const proShare = Math.round(total * 0.875 * 100) / 100;
+    const platformShare = Math.round(total * 0.05 * 100) / 100;
 
     markDone(jobId);
     setMinimized(jobId, false);

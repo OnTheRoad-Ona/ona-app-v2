@@ -2247,10 +2247,10 @@ export function JobFlowScreen({
             {job.agreedMajor == null
               ? "Not set"
               : (() => {
-                  const labour =
-                    viewer === "motorist"
-                      ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
-                      : (job.agreedMajor as number);
+                  const calloutMajor = calloutQuote?.calloutFee ?? 0;
+                  const labour = viewer === "motorist"
+                    ? buildCustomerChargeMajor(job.agreedMajor as number, calloutMajor).totalMajor
+                    : (job.agreedMajor as number);
                   const display = getDisplayTotalMajor({
                     labourMajor: labour,
                     amountMinor: (job as any).amountMinor ?? job.amountMinor,
@@ -2301,7 +2301,7 @@ export function JobFlowScreen({
                 <span className={cn("text-[12px] font-semibold tabular-nums", ink)}>
                   {formatMoney(
                     viewer === "motorist"
-                      ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
+                      ? buildCustomerChargeMajor(job.agreedMajor as number, calloutQuote?.calloutFee ?? 0).totalMajor
                       : (job.agreedMajor as number),
                     job.currency,
                   )}
@@ -2328,12 +2328,12 @@ export function JobFlowScreen({
               >
                 <span className={cn("text-[13px] font-black", ink)}>Total</span>
                 <span className={cn("text-[13px] font-black tabular-nums", ink)}>
-                  {(() => {
-                    const labour =
-                      viewer === "motorist"
-                        ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
-                        : (job.agreedMajor as number);
-                    const display = getDisplayTotalMajor({
+{(() => {
+                      const labour =
+                        viewer === "motorist"
+                          ? buildCustomerChargeMajor(job.agreedMajor as number, calloutQuote?.calloutFee ?? 0).totalMajor
+                          : (job.agreedMajor as number);
+                      const display = getDisplayTotalMajor({
                       labourMajor: labour,
                       amountMinor: (job as any).amountMinor ?? job.amountMinor,
                       quote: calloutQuote,
@@ -2660,9 +2660,10 @@ export function JobFlowScreen({
             </p>
           ) : null}
           {(() => {
+            const calloutMajor = calloutQuote?.calloutFee ?? 0;
             const labour =
               viewer === "motorist" && job.agreedMajor != null
-                ? buildCustomerChargeMajor(job.agreedMajor).totalMajor
+                ? buildCustomerChargeMajor(job.agreedMajor, calloutMajor).totalMajor
                 : job.agreedMajor;
             if (labour == null) return null;
             const display = getDisplayTotalMajor({
@@ -3585,14 +3586,14 @@ export function JobFlowScreen({
         isLight={isLight}
         title="Payout processing"
         compactHeader
-        onBack={() => router.replace("/settings/payments")}
+        onBack={() => router.replace("/dashboard")}
         footer={
           <button
             type="button"
-            onClick={() => router.replace("/settings/payments")}
+            onClick={() => router.replace("/dashboard")}
             className="inline-flex h-12 w-full items-center justify-center rounded-md border-0 bg-[#FF6B35] text-[14px] font-black text-white"
           >
-            Payment status
+            Dashboard
           </button>
         }
       >
@@ -3904,9 +3905,10 @@ export function JobFlowScreen({
                 )}
               >
                 {(() => {
+                  const calloutMajor = calloutQuote?.calloutFee ?? 0;
                   const labour =
                     viewer === "motorist"
-                      ? buildCustomerChargeMajor(job.agreedMajor as number).totalMajor
+                      ? buildCustomerChargeMajor(job.agreedMajor as number, calloutMajor).totalMajor
                       : (job.agreedMajor as number);
                   const display = getDisplayTotalMajor({
                     labourMajor: labour,

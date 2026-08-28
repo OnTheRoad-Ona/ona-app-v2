@@ -28,6 +28,7 @@ import {
   requestForceIncomingPanel,
   subscribeIncomingPanelOpen,
 } from "@/lib/jobs/incoming-popup-timing";
+import { isPayoutPendingSettlement } from "@/lib/jobs/constants";
 import { backendSubscribeJobs } from "@/lib/supabase/app-api";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
 import { useT } from "@/lib/i18n";
@@ -211,6 +212,7 @@ export default function TechnicianDashboardPage() {
   const [incoming, setIncoming] = useState<JobRecord[]>([]);
   const [ongoing, setOngoing] = useState<JobRecord[]>([]);
   const [recent, setRecent] = useState<JobRecord[]>([]);
+  const [payoutProcessing, setPayoutProcessing] = useState<JobRecord[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   /** Incoming lower panel is up hide the dashboard's own Incoming list. */
   const [incomingPanelOpen, setIncomingPanelOpen] = useState(false);
@@ -332,8 +334,16 @@ export default function TechnicianDashboardPage() {
             new Date(a.updatedAt || a.createdAt).getTime(),
         );
 
+      const payoutPending = mine
+        .filter((j) => RECENT_STATUSES.has(j.status) && isPayoutPendingSettlement(j))
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt).getTime() -
+            new Date(a.updatedAt || a.createdAt).getTime(),
+        );
+
       const finished = mine
-        .filter((j) => RECENT_STATUSES.has(j.status))
+        .filter((j) => RECENT_STATUSES.has(j.status) && !isPayoutPendingSettlement(j))
         .sort(
           (a, b) =>
             new Date(b.updatedAt || b.createdAt).getTime() -
@@ -343,6 +353,7 @@ export default function TechnicianDashboardPage() {
 
       setIncoming(open);
       setOngoing(active);
+      setPayoutProcessing(payoutPending);
       setRecent(finished);
     } else {
       setIncoming([]);
@@ -746,7 +757,7 @@ export default function TechnicianDashboardPage() {
                               "Service Request"}
                         </p>
                       </div>
-                      <ChevronRight className={cn("h-4 w-4 shrink-0", muted)} />
+                      <ChevronRight className={cn("h-4 w-4 shrink-0 mr-4", muted)} />
                     </button>
                   </li>
                 );
@@ -814,6 +825,52 @@ export default function TechnicianDashboardPage() {
           </section>
         )}
 
+        {/* Payment processing — jobs where payout is pending settlement */}
+        {!jobsLoading && payoutProcessing.length > 0 && (
+          <section aria-label="Payment processing">
+            <p className={cn("mb-1 text-[11px] font-black uppercase tracking-[0.12em]", muted)}>
+              Payment processing
+            </p>
+            <ul className="space-y-0">
+              {payoutProcessing.map((j) => {
+                const addr = meetAddress(j);
+                if (!addr) return null;
+                const { title, subtitle } = splitPlaceAndArea(addr);
+                if (!title) return null;
+                return (
+                  <li key={j.id}>
+                    <div className="flex cursor-default items-center gap-2 py-[7px]">
+                      <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "truncate text-[13px] font-semibold leading-snug",
+                            ink,
+                          )}
+                        >
+                          {title}
+                        </p>
+                        {subtitle ? (
+                          <p
+                            className={cn(
+                              "mt-0.5 truncate text-[11px] font-medium leading-snug",
+                              muted,
+                            )}
+                          >
+                            {subtitle}
+                          </p>
+                        ) : null}
+                        <p className={cn("mt-0.5 text-[10px] font-medium", muted)}>
+                          Payout pending
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
         {/* Last 6 finished jobs vertical listing (Uber/inDrive style), place + area only — read-only, not clickable */}
         {!jobsLoading && showRecent && (
           <section aria-label="Recent jobs">

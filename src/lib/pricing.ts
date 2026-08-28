@@ -60,9 +60,14 @@ export function splitServiceChargeMinor(amountMinor: number): {
 /**
  * Customer checkout = agreed service price only.
  * After release: pro 87.5% · Ona 5% (minus FLW fees) · VAT 7.5% stays on FLW.
+ * Split is now on TOTAL (labour + callout) per user requirement.
  */
-export function buildCustomerChargeMajor(labourMajor: number): {
+export function buildCustomerChargeMajor(
+  labourMajor: number,
+  calloutMajor?: number
+): {
   labourMajor: number;
+  calloutMajor: number;
   platformFeeMajor: number;
   vatMajor: number;
   totalMajor: number;
@@ -70,10 +75,12 @@ export function buildCustomerChargeMajor(labourMajor: number): {
   onaKeepMajor: number;
 } {
   const labour = Math.max(0, Number(labourMajor) || 0);
-  const totalMinor = Math.round(labour * 100);
+  const callout = Math.max(0, Number(calloutMajor) || 0);
+  const totalMinor = Math.round((labour + callout) * 100);
   const split = splitServiceChargeMinor(totalMinor);
   return {
-    labourMajor: split.totalMinor / 100,
+    labourMajor: labour,
+    calloutMajor: callout,
     platformFeeMajor: split.platformFeeMinor / 100,
     vatMajor: split.vatMinor / 100,
     totalMajor: split.totalMinor / 100,

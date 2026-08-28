@@ -222,15 +222,16 @@ function CheckoutInner() {
   );
 
   const agreedMajor = job?.agreedMajor ?? null;
+  const calloutMajor = calloutQuote?.calloutFee ?? 0;
   const chargeBreakdown = useMemo(() => {
     if (agreedMajor == null) return null;
-    const labour = buildCustomerChargeMajor(agreedMajor);
+    const labour = buildCustomerChargeMajor(agreedMajor, calloutMajor);
     const payable = composeCustomerPayableMajor(
       labour.totalMajor,
       calloutQuote,
     );
     return { ...labour, ...payable, serviceChargeMajor: labour.totalMajor };
-  }, [agreedMajor, calloutQuote]);
+  }, [agreedMajor, calloutMajor, calloutQuote]);
 
   const amountLabel = useMemo(() => {
     if (!chargeBreakdown) return "Not set";

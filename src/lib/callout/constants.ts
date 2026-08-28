@@ -135,6 +135,8 @@ export type CalloutQuote = {
   billableDistanceKm: number | null;
   distanceCharge: number | null;
   calloutFee: number | null;
+  /** Snake_case alias from DB */
+  callout_fee?: number | null;
   currency: string;
   originLatitude: number | null;
   originLongitude: number | null;

@@ -514,8 +514,7 @@ export async function attemptProPayout(input: {
     };
   }
 
-  // Prefer stored split (pro 87.5% · Ona 5% · VAT 7.5% of service charge)
-  const labourMinor = Number(meta.labourMinor) || fromMajor || total || 0;
+  // Prefer stored split (pro 87.5% · Ona 5% · VAT 7.5% of total)
   let proPayoutMinor =
     Number(esc.proPayoutMinor) || Number(meta.proPayoutMinor) || 0;
   let platformFeeMinor =
@@ -525,13 +524,12 @@ export async function attemptProPayout(input: {
     0;
   let vatMinor = Number(meta.vatMinor) || 0;
   if (!proPayoutMinor || proPayoutMinor <= 0) {
-    const base = labourMinor > 0 ? labourMinor : total;
-    const s = split95_5(base);
+    const s = split95_5(total);
     proPayoutMinor = s.proPayoutMinor;
     platformFeeMinor = s.platformFeeMinor;
     vatMinor = s.vatMinor;
   } else if (!platformFeeMinor || platformFeeMinor <= 0) {
-    const s = split95_5(labourMinor > 0 ? labourMinor : total);
+    const s = split95_5(total);
     platformFeeMinor = s.platformFeeMinor;
     if (!vatMinor) vatMinor = s.vatMinor;
   }

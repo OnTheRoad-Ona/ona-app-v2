@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cleanAddressLabel } from "@/lib/google-maps";
+import { getLikelyProblem } from "@/lib/jobs/diagnosis";
 
 /**
  * Parses the composed `job.problem` blob into readable Q&A rows.
@@ -63,18 +64,29 @@ function isLocationRow(r: JobProblemRow): boolean {
   return label.includes("location") || label.includes("landmark");
 }
 
-export function customerWaitingHighlights(problem: string, locationLabel?: string | null): JobProblemRow[] {
+export function customerWaitingHighlights(
+  problem: string,
+  locationLabel?: string | null,
+  serviceType?: string | null,
+): JobProblemRow[] {
   const rows: JobProblemRow[] = [];
   if (problem?.trim()) {
-    const lines = problem.split("\n").map((s) => s.trim()).filter(Boolean);
-    for (let i = 0; i < Math.min(lines.length, 2); i++) {
-      rows.push({ label: `Detail ${i + 1}`, answer: lines[i] });
+    const diagnosis = getLikelyProblem({ serviceType, problem, locationLabel });
+    if (diagnosis) {
+      rows.push({ label: "likely Problem", answer: diagnosis });
+    } else {
+      const parsed = parseJobProblem(problem);
+      const bestAnswer =
+        parsed.summary ||
+        parsed.rows.find((r) => r.answer && r.answer.trim())?.answer ||
+        "";
+      if (bestAnswer) rows.push({ label: "likely Problem", answer: bestAnswer });
     }
   }
   if (locationLabel?.trim()) {
     rows.push({ label: "Location", answer: String(locationLabel).trim() });
   }
-  return rows.slice(0, 3);
+  return rows.slice(0, 2);
 }
 
 export interface ParsedJobProblem {

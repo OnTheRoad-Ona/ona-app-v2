@@ -155,7 +155,7 @@ export type JobRecord = {
   proLocation?: Coordinates | null;
   distanceKm?: number;
   etaMinutes?: number;
-  /** Google Distance Matrix human text e.g. "12 mins" */
+  /** google_distance_matrix human text e.g. "12 mins" */
   etaText?: string | null;
   distanceText?: string | null;
   /** google_distance_matrix | haversine_fallback */
@@ -168,6 +168,8 @@ export type JobRecord = {
   paymentReference?: string | null;
   escrowStatus?: string | null;
   amountMinor?: number | null;
+  /** Snake_case alias from DB */
+  amount_minor?: number | null;
   platformFeeMinor?: number | null;
   proPayoutMinor?: number | null;
   dispute?: JobDispute | null;
@@ -205,6 +207,8 @@ export type JobRecord = {
   radiusKm?: number | null;
   /** Server call-out quote present on job GET so the ₦ total paints once. */
   calloutQuote?: CalloutQuote | null;
+  /** Snake_case alias from DB */
+  callout_quote?: CalloutQuote | null;
   /**
    * Tow "add another repair pro": id of the primary (tow) request that arms
    * this scheduled second request. Non-null only on the linked request.
@@ -217,6 +221,10 @@ export type JobRecord = {
   scheduledDispatchAt?: string | null;
   /** ISO when the motorist was first pinged to enter their address (notify once) */
   dispatchNotifiedAt?: string | null;
+  /**
+   * Source of the request (marketplace, sspe, etc.)
+   */
+  source?: string | null;
 };
 
 export type CreateJobInput = {
