@@ -7,11 +7,11 @@
   "crons": [
     {
       "path": "/api/jobs/expire-stale",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/jobs/pairing-sweep",
-      "schedule": "* * * * *"
+      "schedule": "5 0 * * *"
     },
     {
       "path": "/api/payments/payout-retry",
@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron/notification-retry",
-      "schedule": "*/5 * * * *"
+      "schedule": "10 0 * * *"
     },
     {
       "path": "/api/cron/analytics-rollup",
