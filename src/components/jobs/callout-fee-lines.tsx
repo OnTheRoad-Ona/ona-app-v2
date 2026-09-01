@@ -1,10 +1,76 @@
 "use client";
 
 import type { CalloutQuote } from "@/lib/callout/constants";
-import { payableCalloutMajor } from "@/lib/callout/payable";
+import {
+  jobChargeParts,
+  payableCalloutMajor,
+  type JobChargeInput,
+} from "@/lib/callout/payable";
 import { CALLOUT_URGENCY_OPTIONS } from "@/lib/callout/urgency";
 import { formatMoney, type AppCurrency } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
+
+/**
+ * Always Labour + Call Out Fee (₦0 if none) + Total.
+ * Display only — see `jobChargeParts`.
+ */
+export function JobChargeLines({
+  labourMajor,
+  agreedMajor,
+  amountMinor,
+  quote,
+  fallbackQuote,
+  currency,
+  ink,
+  muted,
+  compact,
+  isLight,
+}: JobChargeInput & {
+  currency?: AppCurrency | string | null;
+  ink: string;
+  muted: string;
+  compact?: boolean;
+  isLight?: boolean;
+}) {
+  const parts = jobChargeParts({
+    labourMajor,
+    agreedMajor,
+    amountMinor,
+    quote,
+    fallbackQuote,
+  });
+  if (!parts) return null;
+  const cur = (currency || quote?.currency || fallbackQuote?.currency || "NGN") as AppCurrency;
+  const size = compact ? "text-[11px]" : "text-[12px]";
+  return (
+    <div className={cn("w-full text-left", size)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={cn("font-medium", muted)}>Labour</span>
+        <span className={cn("font-semibold tabular-nums", ink)}>
+          {formatMoney(parts.labourMajor, cur)}
+        </span>
+      </div>
+      <div className="mt-1 flex items-baseline justify-between gap-3">
+        <span className={cn("font-medium", muted)}>Call Out Fee</span>
+        <span className={cn("font-semibold tabular-nums", ink)}>
+          {formatMoney(parts.calloutMajor, cur)}
+        </span>
+      </div>
+      <div
+        className={cn(
+          "mt-2 flex items-baseline justify-between gap-3 border-t",
+          compact ? "pt-1.5" : "pt-2",
+          isLight === false ? "border-white/10" : "border-black/10",
+        )}
+      >
+        <span className={cn("font-black", ink)}>Total</span>
+        <span className={cn("font-black tabular-nums", ink)}>
+          {formatMoney(parts.totalMajor, cur)}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function CalloutFeeLines({
   quote,

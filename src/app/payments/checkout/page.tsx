@@ -66,13 +66,15 @@ function PayTimer({
 }
 import { canEmbedCheckoutInApp } from "@/lib/payments/open-checkout";
 import {
-  buildCustomerChargeMajor,
   forceNairaCurrency,
   formatMoney,
 } from "@/lib/pricing";
-import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
+import { JobChargeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
-import { composeCustomerPayableMajor } from "@/lib/callout/payable";
+import {
+  jobChargeParts,
+  jobEscrowAmountMinor,
+} from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -215,32 +217,31 @@ function CheckoutInner() {
     return () => window.clearInterval(poll);
   }, [phase, jobId, router, reference]);
 
-  const { quote: calloutQuote, ready: calloutReady } = useJobCallout(
+  const { quote: calloutQuote } = useJobCallout(
     job?.id,
     job?.status,
     job?.calloutQuote,
   );
 
   const agreedMajor = job?.agreedMajor ?? null;
-  const calloutMajor = calloutQuote?.calloutFee ?? 0;
-  const chargeBreakdown = useMemo(() => {
-    if (agreedMajor == null) return null;
-    const labour = buildCustomerChargeMajor(agreedMajor, calloutMajor);
-    const payable = composeCustomerPayableMajor(
-      labour.totalMajor,
-      calloutQuote,
-    );
-    return { ...labour, ...payable, serviceChargeMajor: labour.totalMajor };
-  }, [agreedMajor, calloutMajor, calloutQuote]);
+  const chargeParts = useMemo(
+    () =>
+      jobChargeParts({
+        agreedMajor,
+        amountMinor: jobEscrowAmountMinor(job),
+        quote: calloutQuote,
+        fallbackQuote: job?.calloutQuote,
+      }),
+    [agreedMajor, calloutQuote, job],
+  );
 
   const amountLabel = useMemo(() => {
-    if (!chargeBreakdown) return "Not set";
-    if (!calloutReady) return "\u00a0";
+    if (!chargeParts) return "Not set";
     return formatMoney(
-      chargeBreakdown.totalMajor,
+      chargeParts.totalMajor,
       forceNairaCurrency(job?.currency),
     );
-  }, [chargeBreakdown, calloutReady, job?.currency]);
+  }, [chargeParts, job?.currency]);
 
   const payEndsAt = useMemo(() => {
     if (sessionEndsAt) return sessionEndsAt;
@@ -872,41 +873,19 @@ function CheckoutInner() {
               >
                 {amountLabel}
               </p>
-              {chargeBreakdown ? (
-                <div
-                  className={cn(
-                    "mt-3 space-y-1 text-[11px] font-semibold",
-                    muted,
-                  )}
-                >
-                  <div className="flex justify-between gap-2">
-                    <span>Service charge</span>
-                    <span className={ink}>
-                      {formatMoney(
-                        chargeBreakdown.serviceChargeMajor,
-                        forceNairaCurrency(job?.currency),
-                      )}
-                    </span>
-                  </div>
-                  {chargeBreakdown.calloutMajor > 0 ? (
-                    <div className="flex justify-between gap-2">
-                      <span>Call Out Fee</span>
-                      <span className={ink}>
-                        {formatMoney(
-                          chargeBreakdown.calloutMajor,
-                          forceNairaCurrency(job?.currency),
-                        )}
-                      </span>
-                    </div>
-                  ) : (
-                    <CalloutFeeLines
-                      quote={calloutQuote}
-                      currency={job?.currency}
-                      ink={ink}
-                      muted={muted}
-                      compact
-                    />
-                  )}
+              {chargeParts ? (
+                <div className="mt-3">
+                  <JobChargeLines
+                    agreedMajor={agreedMajor}
+                    amountMinor={jobEscrowAmountMinor(job)}
+                    quote={calloutQuote}
+                    fallbackQuote={job?.calloutQuote}
+                    currency={forceNairaCurrency(job?.currency)}
+                    ink={ink}
+                    muted={muted}
+                    compact
+                    isLight={isLight}
+                  />
                   <p className="pt-1 text-[10px] font-medium leading-snug">
                     Pay this exact amount only. Your bank may add its own
                     transfer fee. Do not change the transfer amount.

@@ -88,34 +88,48 @@ export function composeCustomerPayableMajor(
   };
 }
 
-/**
- * Single source of truth for display Total (Labour + Call Out Fee).
- * Use everywhere instead of `formatMoney(agreedMajor)` alone.
- * - Prefers escrow `amountMinor/100` when present (held/released)
- * - Then `jobTotalMajor` when callout is settled
- * - Falls back to labour + raw `calloutFee` even when pending
- */
-export function getDisplayTotalMajor(input: {
+export type JobChargeParts = {
+  labourMajor: number;
+  calloutMajor: number;
+  totalMajor: number;
+};
+
+export type JobChargeInput = {
   agreedMajor?: number | null;
   labourMajor?: number | null;
   amountMinor?: number | null;
   quote?: CalloutQuote | null;
   fallbackQuote?: CalloutQuote | null;
-}): number | null {
+};
+
+/**
+ * Display breakdown: Labour + Call Out Fee (₦0 if none) = Total.
+ * Human SoT for every job price UI. Does not change escrow or split math.
+ *
+ * A labour-only escrow row must not hide an existing call-out fee.
+ */
+export function jobChargeParts(input: JobChargeInput): JobChargeParts | null {
   const labourRaw = input.labourMajor ?? input.agreedMajor;
   if (labourRaw == null || !Number.isFinite(Number(labourRaw))) return null;
-  const labour = Number(labourRaw);
-  const quote = input.quote ?? input.fallbackQuote ?? null;
-  const fallbackQuote = input.fallbackQuote ?? quote;
-  const q = quote ?? fallbackQuote;
-  // escrow is ground truth after payment
+  const labour = Math.max(0, Number(labourRaw));
+  const q = input.quote ?? input.fallbackQuote ?? null;
+  const callout = quoteCalloutFeeMajor(q) || payableCalloutMajor(q);
+  const computed = Math.round((labour + callout) * 100) / 100;
   const escrow = input.amountMinor;
-  if (escrow != null && Number.isFinite(Number(escrow)) && Number(escrow) > 0) {
-    return Math.round(Number(escrow)) / 100;
+  const escrowMajor =
+    escrow != null && Number.isFinite(Number(escrow)) && Number(escrow) > 0
+      ? Math.round(Number(escrow)) / 100
+      : null;
+  let total = computed;
+  if (escrowMajor != null && callout <= 0) {
+    total = escrowMajor;
+  } else if (escrowMajor != null && escrowMajor >= computed - 0.005) {
+    total = escrowMajor;
   }
-  const total = jobTotalMajor(labour, q);
-  if (total != null) return total;
-  const rawCallout = quoteCalloutFeeMajor(q);
-  const callout = rawCallout > 0 ? rawCallout : payableCalloutMajor(q);
-  return Math.round((labour + callout) * 100) / 100;
+  return { labourMajor: labour, calloutMajor: callout, totalMajor: total };
+}
+
+/** Total ₦ (labour + call-out). Use `jobChargeParts` when you need the 3 lines. */
+export function getDisplayTotalMajor(input: JobChargeInput): number | null {
+  return jobChargeParts(input)?.totalMajor ?? null;
 }

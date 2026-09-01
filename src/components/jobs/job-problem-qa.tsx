@@ -71,20 +71,29 @@ export function customerWaitingHighlights(
 ): JobProblemRow[] {
   const rows: JobProblemRow[] = [];
   if (problem?.trim()) {
+    // Shared source with Pro panel: parse raw Q/A first so both sides see the same base.
+    const parsed = parseJobProblem(problem);
+    const cleanedRows = stripCoordinateLocations(
+      filterHiddenVehicleRows(parsed.rows, false),
+    );
+    const bestRawAnswer =
+      parsed.summary ||
+      cleanedRows.find((r) => r.answer && r.answer.trim())?.answer ||
+      "";
+    // Synthesis is trade-locked only (see diagnosis.ts) — pro's raw stays fallback.
     const diagnosis = getLikelyProblem({ serviceType, problem, locationLabel });
-    if (diagnosis) {
-      rows.push({ label: "likely Problem", answer: diagnosis });
-    } else {
-      const parsed = parseJobProblem(problem);
-      const bestAnswer =
-        parsed.summary ||
-        parsed.rows.find((r) => r.answer && r.answer.trim())?.answer ||
-        "";
-      if (bestAnswer) rows.push({ label: "likely Problem", answer: bestAnswer });
+    // Use diagnosis only when it adds value beyond the raw answer; otherwise keep raw for accuracy.
+    const likelyAnswer =
+      diagnosis && diagnosis !== bestRawAnswer ? diagnosis : bestRawAnswer;
+    if (likelyAnswer) {
+      rows.push({ label: "likely Problem", answer: likelyAnswer.slice(0, 80) });
     }
   }
   if (locationLabel?.trim()) {
-    rows.push({ label: "Location", answer: String(locationLabel).trim() });
+    const loc = cleanAddressLabel(String(locationLabel).trim());
+    if (loc && !COORDINATES_ONLY_RE.test(loc)) {
+      rows.push({ label: "Location", answer: loc });
+    }
   }
   return rows.slice(0, 2);
 }
@@ -260,7 +269,7 @@ export function JobProblemQA({
   );
 
   const chevronDivider = (
-    <div className="flex items-center">
+    <div className="flex w-full items-center justify-between py-1">
       <div className="shrink-0">
         {offset > 0 ? (
           <button
@@ -271,20 +280,20 @@ export function JobProblemQA({
           >
             <span
               className={cn(
-                "om-bounce-arrow-back flex h-5 w-5 items-center justify-center rounded-full",
+                "om-bounce-arrow-back flex h-7 w-7 items-center justify-center rounded-full",
                 isLight
                   ? "bg-[#c8c9cd] text-slate-900 shadow-sm"
                   : "bg-black text-white shadow-sm",
               )}
             >
-              <ChevronLeft className="h-3 w-3" strokeWidth={2.75} />
+              <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2.75} />
             </span>
           </button>
         ) : (
-          <span className="block h-5 w-5" aria-hidden="true" />
+          <span className="block h-7 w-7" aria-hidden="true" />
         )}
       </div>
-            <div className="shrink-0">
+      <div className="shrink-0">
         {hasMore ? (
           <button
             type="button"
@@ -294,7 +303,7 @@ export function JobProblemQA({
           >
             <span
               className={cn(
-                "om-bounce-arrow flex h-6 w-6 items-center justify-center rounded-full",
+                "om-bounce-arrow flex h-7 w-7 items-center justify-center rounded-full",
                 isLight
                   ? "bg-[#c8c9cd] text-slate-900 shadow-sm"
                   : "bg-black text-white shadow-sm",
@@ -304,7 +313,7 @@ export function JobProblemQA({
             </span>
           </button>
         ) : (
-          <span className="block h-6 w-6" aria-hidden="true" />
+          <span className="block h-7 w-7" aria-hidden="true" />
         )}
       </div>
     </div>

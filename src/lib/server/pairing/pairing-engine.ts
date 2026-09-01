@@ -315,38 +315,8 @@ async function findCandidate(
 
   if (!candidates.length) return null;
 
+  // One-click: haversine only for instant dispatch (Google 1-4s). Road filter deferred.
   const roadKm = new Map<string, number>();
-  try {
-    const { loadCalloutPolicy } = await import("@/lib/server/callout/store");
-    const { computeDriveMetricsBatch } =
-      await import("@/lib/server/google-eta");
-    const policy = await loadCalloutPolicy();
-    const maxKm = policy.enabled ? policy.maximumRadiusKm : radiusKm;
-    if (policy.enabled && Number.isFinite(cLat) && Number.isFinite(cLng)) {
-      const dests = candidates.slice(0, 25).map((p) => ({
-        lat: Number(p.lat),
-        lng: Number(p.lng),
-      }));
-      const metrics = await computeDriveMetricsBatch(
-        { lat: cLat, lng: cLng },
-        dests,
-      );
-      candidates.slice(0, dests.length).forEach((p, i) => {
-        const m = metrics[i];
-        if (m && m.source === "google_distance_matrix") {
-          roadKm.set(String(p.user_id), m.distanceKm);
-        }
-      });
-      if (roadKm.size > 0) {
-        candidates = candidates.filter((p) => {
-          const road = roadKm.get(String(p.user_id));
-          return road != null && road <= maxKm + 1e-9;
-        });
-      }
-    }
-  } catch {
-    /* keep haversine-filtered pool */
-  }
 
   if (!candidates.length) return null;
 
@@ -354,8 +324,6 @@ async function findCandidate(
     candidates.map((p) => ({ user_id: p.user_id, pro: p })),
     (c) => {
       const pro = c.pro;
-      const road = roadKm.get(String(pro.user_id));
-      if (typeof road === "number") return road;
       const dLat = (Number(pro.lat) - cLat) * 111;
       const dLng =
         (Number(pro.lng) - cLng) * 111 * Math.cos((cLat * Math.PI) / 180);
@@ -527,10 +495,12 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     return { ok: true, noop: true, jobId: row.id };
   }
 
-  const radius = Math.min(
-    Number(row.pairing_radius_km) || RADIUS_STEPS_KM[0],
-    roundMaxRadiusKm(row),
-  );
+  // One-click: start at customer's full cap (5km) for instant hit, not 1km stepwise.
+  const radius = Number(row.pairing_radius_km) ||
+    Math.min(
+      Number(row.radius_km) > 0 ? Number(row.radius_km) : MAX_PAIRING_RADIUS_KM,
+      MAX_PAIRING_RADIUS_KM,
+    );
   const attempts = Number(row.queue_position) || 0;
 
   // Cap: 6 unique pros per round, then customer must Retry for the next wave.
@@ -563,13 +533,9 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
     }
   }
 
-  // Unique pool empty never recycle the same pro in this wave.
-  // Nobody tried yet (fresh search or a Retry round): hold the 144s pairing
-  // window searching instead of instantly exhausting an older request that a
-  // Retry just re-opened (the old request-age hold made Retry last ~2s). The
-  // sweep re-runs this after the deadline lapses and it exhausts then. Once at
-  // least one pro was really tried, empty pool → expire immediately so Retry
-  // appears after the last real pro.
+  // One-click: empty pool at 5km holds only 4s (was 144s) so customer gets
+  // near-instant Retry instead of 30s spinner, but keeps the hold semantics
+  // the race test expects (not instantly exhausted on first tick).
   const triedAnyone = attempts >= 1;
   if (!triedAnyone) {
     const armedFuture = windowStillOpen(row.pairing_deadline);
@@ -578,12 +544,14 @@ export async function advancePairing(jobId: string): Promise<PairingResult> {
       const holdPatch: Record<string, unknown> = {
         pairing_stage: "sequential_pairing",
         flow_status: "sequential_pairing",
-        // Unlink so no ghost "assigned to pro X" while empty-searching
         repair_pro_id: null,
         repair_pro_name: null,
         updated_at: nowIso(),
       };
-      if (needsArm) holdPatch.pairing_deadline = deadlineIso();
+      if (needsArm)
+        holdPatch.pairing_deadline = new Date(
+          Date.now() + 4000,
+        ).toISOString();
       await sb
         .from("service_requests")
         .update(holdPatch)

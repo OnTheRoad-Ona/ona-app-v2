@@ -488,28 +488,31 @@ async function attachCalloutQuietly(
   job: JobRecord,
   input: CreateJobInput,
 ): Promise<JobRecord> {
-  try {
-    const { attachCalloutToRequest } =
-      await import("@/lib/server/callout/quote");
-    await attachCalloutToRequest({
-      requestId: job.id,
-      problem: input.problem,
-      selectedTrade: input.serviceType,
-      destination: input.motoristLocation,
-      proId: input.repairProId,
-      atWorkshop: input.atWorkshop,
-      remoteConsultation: input.remoteConsultation,
-      physicalAttendanceRequired: input.physicalAttendanceRequired,
-      calloutEligible: input.calloutEligible,
-      tradeLocked: true,
-      urgencyKind: input.calloutUrgency || "normal",
-    });
-  } catch (e) {
-    console.error("[callout] attach failed", e);
-  }
-  const withCallout = job;
-  await createScheduledLinkedRequestIfNeeded(job, input);
-  return startOpenSearchIfNeeded(withCallout, input);
+  // Fire-and-forget: do not await callout classification before dispatch.
+  // SSPE must start in <200ms for one-click feel; callout persists in background.
+  void (async () => {
+    try {
+      const { attachCalloutToRequest } =
+        await import("@/lib/server/callout/quote");
+      await attachCalloutToRequest({
+        requestId: job.id,
+        problem: input.problem,
+        selectedTrade: input.serviceType,
+        destination: input.motoristLocation,
+        proId: input.repairProId,
+        atWorkshop: input.atWorkshop,
+        remoteConsultation: input.remoteConsultation,
+        physicalAttendanceRequired: input.physicalAttendanceRequired,
+        calloutEligible: input.calloutEligible,
+        tradeLocked: true,
+        urgencyKind: input.calloutUrgency || "normal",
+      });
+    } catch (e) {
+      console.error("[callout] attach failed", e);
+    }
+  })();
+  void createScheduledLinkedRequestIfNeeded(job, input).catch(() => undefined);
+  return startOpenSearchIfNeeded(job, input);
 }
 
 /**
@@ -573,7 +576,7 @@ async function createScheduledLinkedRequestIfNeeded(
       remainingCandidates: null,
       reservationStatus: null,
       assignmentStatus: null,
-      pairingRadiusKm: 1,
+      pairingRadiusKm: job.radiusKm,
       radiusKm: job.radiusKm,
       linkedRequestId: job.id,
       scheduledDispatchAt: null,
@@ -676,7 +679,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRecord> {
     remainingCandidates: null,
     reservationStatus: null,
     assignmentStatus: null,
-    pairingRadiusKm: 1,
+    pairingRadiusKm: clampCustomerRadius(input.radiusKm),
     radiusKm: clampCustomerRadius(input.radiusKm),
     chosenProId: input.repairProId || null,
     createdAt: ts,
@@ -1175,6 +1178,25 @@ async function hydrateJobContacts(job: JobRecord): Promise<JobRecord> {
 }
 
 /**
+ * Hydrate callout quote for display Total = Labour + Call-out.
+ * Uses estimate when stored quote is PENDING so price-agreed never flashes labour-only.
+ */
+async function hydrateJobCallout(job: JobRecord): Promise<JobRecord> {
+  if (job.agreedMajor == null) return job;
+  try {
+    const { resolveJobCalloutQuote } =
+      await import("@/lib/server/callout/resolve");
+    const q = await resolveJobCalloutQuote(job);
+    if (q) {
+      return { ...job, calloutQuote: q, callout_quote: q };
+    }
+  } catch {
+    /* keep job without quote */
+  }
+  return job;
+}
+
+/**
  * Load job without payment reconciliation (avoids getJob ↔ markPaid loops). */
 async function getJobRaw(id: string): Promise<JobRecord | null> {
   // Fast path a copy this process persisted or read within the last
@@ -1183,6 +1205,14 @@ async function getJobRaw(id: string): Promise<JobRecord | null> {
   if (fast) {
     const at = fast.updatedAt ? new Date(fast.updatedAt).getTime() : Number.NaN;
     if (Number.isFinite(at) && Date.now() - at < READ_CACHE_MS) {
+      // Even cached jobs need callout hydration if missing (agreed jobs)
+      if (fast.agreedMajor != null && !fast.calloutQuote && !fast.callout_quote) {
+        const hydrated = await hydrateJobCallout(fast);
+        if (hydrated !== fast) {
+          memory.set(id, hydrated);
+          return hydrated;
+        }
+      }
       return fast;
     }
     memory.delete(id);
@@ -1203,6 +1233,7 @@ async function getJobRaw(id: string): Promise<JobRecord | null> {
           job = { ...job, motoristVehicle: memHit.motoristVehicle };
         }
         job = await hydrateJobContacts(job);
+        job = await hydrateJobCallout(job);
         memory.set(id, job);
         return job;
       }
@@ -1212,7 +1243,9 @@ async function getJobRaw(id: string): Promise<JobRecord | null> {
   }
   const mem = memory.get(id);
   if (!mem) return null;
-  return hydrateJobContacts(mem);
+  let hydrated = await hydrateJobContacts(mem);
+  hydrated = await hydrateJobCallout(hydrated);
+  return hydrated;
 }
 
 export async function getJob(id: string): Promise<JobRecord | null> {
@@ -3031,7 +3064,9 @@ async function listJobsForUserLean(
       /* fall back to memory */
     }
   }
-  return out;
+  // Hydrate Total = Labour + Call-out for already-agreed jobs so lean list never shows labour-only
+  const leanWithCallout = await attachSettledCalloutQuotes(out);
+  return leanWithCallout;
 }
 
 export async function listDisputedJobs(): Promise<JobRecord[]> {

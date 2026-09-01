@@ -74,6 +74,8 @@ import {
 } from "@/lib/callout/engine";
 import { DEFAULT_TRADE_BASE_FEES } from "@/lib/callout/constants";
 import type { CalloutQuote } from "@/lib/callout/constants";
+import { JobChargeLines } from "@/components/jobs/callout-fee-lines";
+import { jobEscrowAmountMinor } from "@/lib/callout/payable";
 import type { ProService } from "@/lib/types";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { DEFAULT_VENDOR_PHOTO } from "@/lib/brand";
@@ -1519,12 +1521,19 @@ export function IncomingJobPopup() {
                             {titleFor(job)}
                           </p>
                           {job.agreedMajor != null ? (
-                            <p
-                              className="mt-0.5 text-[12px] font-bold"
-                              style={{ color: ink }}
-                            >
-                              {formatMoney(job.agreedMajor, job.currency)}
-                            </p>
+                            <div className="mt-1">
+                              <JobChargeLines
+                                agreedMajor={job.agreedMajor}
+                                amountMinor={jobEscrowAmountMinor(job)}
+                                quote={job.calloutQuote}
+                                fallbackQuote={job.calloutQuote}
+                                currency={job.currency}
+                                ink={isLight ? "text-slate-900" : "text-white"}
+                                muted={isLight ? "text-slate-500" : "text-white/50"}
+                                compact
+                                isLight={isLight}
+                              />
+                            </div>
                           ) : null}
                         </div>
                       </div>

@@ -17,11 +17,8 @@ import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
-import {
-  getDisplayTotalMajor,
-  jobEscrowAmountMinor,
-} from "@/lib/callout/payable";
-import { formatMoney } from "@/lib/pricing";
+import { JobChargeLines } from "@/components/jobs/callout-fee-lines";
+import { jobEscrowAmountMinor } from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -238,13 +235,6 @@ function ProJobsPage({
                 {past.map((j) => {
                   const addr = meetAddress(j);
                   const when = formatWhen(j.updatedAt || j.createdAt);
-                  const displayTotal = getDisplayTotalMajor({
-                    agreedMajor: j.agreedMajor,
-                    amountMinor: jobEscrowAmountMinor(j),
-                    quote: j.calloutQuote,
-                    fallbackQuote: j.calloutQuote,
-                  });
-                  const price = displayTotal != null ? formatMoney(displayTotal, j.currency) : null;
                   return (
                     <li key={j.id}>
                       <button
@@ -308,15 +298,20 @@ function ProJobsPage({
                               {addr}
                             </p>
                           ) : null}
-                          {price ? (
-                            <p
-                              className={cn(
-                                "mt-1 text-[13px] font-semibold tabular-nums",
-                                ink,
-                              )}
-                            >
-                              {price}
-                            </p>
+                          {j.agreedMajor != null ? (
+                            <div className="mt-1.5">
+                              <JobChargeLines
+                                agreedMajor={j.agreedMajor}
+                                amountMinor={jobEscrowAmountMinor(j)}
+                                quote={j.calloutQuote}
+                                fallbackQuote={j.calloutQuote}
+                                currency={j.currency}
+                                ink={ink}
+                                muted={muted}
+                                compact
+                                isLight={isLight}
+                              />
+                            </div>
                           ) : null}
                         </div>
                         <ChevronRight

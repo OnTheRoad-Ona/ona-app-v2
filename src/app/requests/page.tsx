@@ -18,11 +18,8 @@ import { ExpiredDialog } from "@/components/ui/expired-dialog";
 import { JOB_CLOSED_MESSAGE } from "@/lib/chat-expired";
 import { apiListJobs } from "@/lib/jobs/client";
 import type { JobFlowStatus, JobRecord } from "@/lib/jobs/types";
-import {
-  getDisplayTotalMajor,
-  jobEscrowAmountMinor,
-} from "@/lib/callout/payable";
-import { formatMoney } from "@/lib/pricing";
+import { JobChargeLines } from "@/components/jobs/callout-fee-lines";
+import { jobEscrowAmountMinor } from "@/lib/callout/payable";
 import { isAutomotiveTrade } from "@/lib/artisan/catalog";
 import { PRO_SERVICE_LABELS } from "@/lib/services";
 import { useApp } from "@/lib/store";
@@ -210,13 +207,6 @@ export default function RequestsPage() {
       : j.repairProName;
     const skill = PRO_SERVICE_LABELS[j.serviceType] ?? j.serviceType;
     const when = formatWhen(j.updatedAt || j.createdAt);
-    const displayTotal = getDisplayTotalMajor({
-      agreedMajor: j.agreedMajor,
-      amountMinor: jobEscrowAmountMinor(j),
-      quote: j.calloutQuote,
-      fallbackQuote: j.calloutQuote,
-    });
-    const price = displayTotal != null ? formatMoney(displayTotal, j.currency) : null;
     const isOpen = OPEN.includes(j.status);
 
     return (
@@ -259,9 +249,23 @@ export default function RequestsPage() {
           </p>
           <p className={cn("mt-1 text-[11px] font-medium", muted)}>
             {when}
-            {price ? ` · ${price}` : ""}
             {!isOpen ? " · View only" : ""}
           </p>
+          {j.agreedMajor != null ? (
+            <div className="mt-1.5">
+              <JobChargeLines
+                agreedMajor={j.agreedMajor}
+                amountMinor={jobEscrowAmountMinor(j)}
+                quote={j.calloutQuote}
+                fallbackQuote={j.calloutQuote}
+                currency={j.currency}
+                ink={ink}
+                muted={muted}
+                compact
+                isLight={isLight}
+              />
+            </div>
+          ) : null}
         </div>
         <ChevronRight
           className={cn("mt-1 h-4 w-4 shrink-0", muted)}

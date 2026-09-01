@@ -24,7 +24,7 @@ import {
   readOnlyChatHref,
 } from "@/lib/chat-expired";
 import { apiGetJob } from "@/lib/jobs/client";
-import { CalloutFeeLines } from "@/components/jobs/callout-fee-lines";
+import { JobChargeLines } from "@/components/jobs/callout-fee-lines";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
 import type { JobFlowStatus, JobOffer, JobRecord } from "@/lib/jobs/types";
 import { formatMoney } from "@/lib/pricing";
@@ -374,29 +374,20 @@ export default function RequestProcessPage({
               {job.locationLabel}
             </p>
           )}
-          {job.agreedMajor != null && (
-            <p
-              className={cn("mt-3 text-[20px] font-semibold tabular-nums", ink)}
-            >
-              {(() => {
-                const display = getDisplayTotalMajor({
-                  agreedMajor: job.agreedMajor,
-                  amountMinor: jobEscrowAmountMinor(job),
-                  quote: calloutQuote,
-                  fallbackQuote: job.calloutQuote,
-                });
-                return display != null ? formatMoney(display, job.currency) : formatMoney(job.agreedMajor, job.currency);
-              })()}
-            </p>
-          )}
-          <div className="mt-2">
-            <CalloutFeeLines
-              quote={calloutQuote}
-              currency={job.currency}
-              ink={ink}
-              muted={muted}
-            />
-          </div>
+          {job.agreedMajor != null ? (
+            <div className="mt-3">
+              <JobChargeLines
+                agreedMajor={job.agreedMajor}
+                amountMinor={jobEscrowAmountMinor(job)}
+                quote={calloutQuote ?? job.calloutQuote}
+                fallbackQuote={job.calloutQuote}
+                currency={job.currency}
+                ink={ink}
+                muted={muted}
+                isLight={isLight}
+              />
+            </div>
+          ) : null}
           <div className="mt-2 pt-1">
             <DetailRow
               label="Status"
@@ -472,24 +463,14 @@ export default function RequestProcessPage({
             ink={ink}
             muted={muted}
           />
-          <DetailRow
-            label="Agreed price"
-            value={
-              job.agreedMajor != null
-                ? (() => {
-                    const display = getDisplayTotalMajor({
-                      agreedMajor: job.agreedMajor,
-                      amountMinor: jobEscrowAmountMinor(job),
-                      quote: calloutQuote,
-                      fallbackQuote: job.calloutQuote,
-                    });
-                    return display != null ? formatMoney(display, job.currency) : formatMoney(job.agreedMajor, job.currency);
-                  })()
-                : "Not agreed"
-            }
-            ink={ink}
-            muted={muted}
-          />
+          {job.agreedMajor == null ? (
+            <DetailRow
+              label="Agreed price"
+              value="Not agreed"
+              ink={ink}
+              muted={muted}
+            />
+          ) : null}
           <DetailRow
             label="Accepted at"
             value={acceptedAt ? formatWhen(acceptedAt) : "Not set"}
@@ -557,10 +538,24 @@ export default function RequestProcessPage({
             ink={ink}
             muted={muted}
           />
-          {job.amountMinor != null && (
+          {(getDisplayTotalMajor({
+            agreedMajor: job.agreedMajor,
+            amountMinor: jobEscrowAmountMinor(job),
+            quote: calloutQuote ?? job.calloutQuote,
+            fallbackQuote: job.calloutQuote,
+          }) ??
+            (job.amountMinor != null ? job.amountMinor / 100 : null)) != null && (
             <DetailRow
-              label="Escrow amount"
-              value={formatMoney(job.amountMinor / 100, job.currency)}
+              label="Escrow total"
+              value={formatMoney(
+                getDisplayTotalMajor({
+                  agreedMajor: job.agreedMajor,
+                  amountMinor: jobEscrowAmountMinor(job),
+                  quote: calloutQuote ?? job.calloutQuote,
+                  fallbackQuote: job.calloutQuote,
+                }) ?? (job.amountMinor != null ? job.amountMinor / 100 : 0),
+                job.currency,
+              )}
               ink={ink}
               muted={muted}
             />

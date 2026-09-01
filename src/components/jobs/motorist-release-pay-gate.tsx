@@ -27,11 +27,17 @@ import {
   satisfiedReleaseEndsAtIso,
 } from "@/lib/jobs/constants";
 import type { JobRecord } from "@/lib/jobs/types";
-import { formatMoney, forceNairaCurrency } from "@/lib/pricing";
+import {
+  buildCustomerChargeMajor,
+  formatMoney,
+  forceNairaCurrency,
+} from "@/lib/pricing";
 import { useJobCallout } from "@/lib/callout/use-job-callout";
+import { JobChargeLines } from "@/components/jobs/callout-fee-lines";
 import {
   getDisplayTotalMajor,
   jobCalloutQuoteOf,
+  jobChargeParts,
   jobEscrowAmountMinor,
 } from "@/lib/callout/payable";
 import { playAppSound, unlockAudio } from "@/lib/sound-tone";
@@ -429,18 +435,25 @@ export function MotoristReleasePayGate() {
     // 6h auto-release countdown it carries). The transfer runs in the
     // background; the job shell we land on reconciles with the real payout.
     const currency = forceNairaCurrency(pending.currency);
-    const displayTotal = getDisplayTotalMajor({
+    const parts = jobChargeParts({
+      agreedMajor: pending.agreedMajor,
+      amountMinor: jobEscrowAmountMinor(pending),
+      quote: calloutQuote,
+      fallbackQuote: jobCalloutQuoteOf(pending),
+    });
+    const displayTotal = parts?.totalMajor ?? getDisplayTotalMajor({
       agreedMajor: pending.agreedMajor,
       amountMinor: jobEscrowAmountMinor(pending),
       quote: calloutQuote,
       fallbackQuote: jobCalloutQuoteOf(pending),
     });
     const total = displayTotal ?? 0;
-    const calloutMajor = 0;
-    const labourMajor = total > 0 ? total : pending.agreedMajor ?? 0;
-    // Total splits 87.5/5/7.5 on overall payment (labour + callout) per user request
-    const proShare = Math.round(total * 0.875 * 100) / 100;
-    const platformShare = Math.round(total * 0.05 * 100) / 100;
+    const calloutMajor = parts?.calloutMajor ?? 0;
+    const labourMajor = parts?.labourMajor ?? pending.agreedMajor ?? 0;
+    // Pro receives 87.5% of labour + 100% call-out (matches server payout-settlement)
+    const labourSplit = buildCustomerChargeMajor(labourMajor);
+    const proShare = Math.round((labourSplit.proPayoutMajor + calloutMajor) * 100) / 100;
+    const platformShare = Math.round(labourSplit.platformFeeMajor * 100) / 100;
 
     markDone(jobId);
     setMinimized(jobId, false);
@@ -609,7 +622,20 @@ export function MotoristReleasePayGate() {
         >
           Confirm the job is done to release payment to your Repair Pro
         </p>
-        {pendingTotal != null ? (
+        {pending != null && pending.agreedMajor != null ? (
+          <div className="mt-3">
+            <JobChargeLines
+              agreedMajor={pending.agreedMajor}
+              amountMinor={jobEscrowAmountMinor(pending)}
+              quote={calloutQuote}
+              fallbackQuote={jobCalloutQuoteOf(pending)}
+              currency={currency}
+              ink={isLight ? "text-slate-900" : "text-white"}
+              muted={isLight ? "text-slate-600" : "text-white/60"}
+              isLight={isLight}
+            />
+          </div>
+        ) : pendingTotal != null ? (
           <p
             className="mt-3 text-center text-[22px] font-black tabular-nums"
             style={{ color: ink }}

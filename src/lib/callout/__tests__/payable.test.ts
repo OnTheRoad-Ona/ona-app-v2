@@ -5,6 +5,7 @@ import {
   getDisplayTotalMajor,
   isCalloutAmountReady,
   jobCalloutQuoteOf,
+  jobChargeParts,
   jobEscrowAmountMinor,
   jobTotalMajor,
   payableCalloutMajor,
@@ -101,13 +102,24 @@ describe("composeCustomerPayableMajor", () => {
 });
 
 describe("getDisplayTotalMajor", () => {
-  it("prefers escrow amountMinor over computed total", () => {
+  it("does not let labour-only escrow hide call-out", () => {
     expect(
       getDisplayTotalMajor({ agreedMajor: 150, amountMinor: 142000, quote: quote({ calloutFee: 1270 }) }),
     ).toBe(1420);
     expect(
       getDisplayTotalMajor({ agreedMajor: 150, amountMinor: 15000, quote: quote({ calloutFee: 500 }) }),
-    ).toBe(150);
+    ).toBe(650);
+  });
+
+  it("jobChargeParts always exposes Labour + Call Out (₦0 ok) + Total", () => {
+    expect(
+      jobChargeParts({ agreedMajor: 150, quote: quote({ calloutFee: 500 }) }),
+    ).toEqual({ labourMajor: 150, calloutMajor: 500, totalMajor: 650 });
+    expect(jobChargeParts({ agreedMajor: 150, quote: null })).toEqual({
+      labourMajor: 150,
+      calloutMajor: 0,
+      totalMajor: 150,
+    });
   });
 
   it("falls back to labour + raw calloutFee when pending", () => {
