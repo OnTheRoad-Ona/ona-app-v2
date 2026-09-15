@@ -23,7 +23,7 @@ import {
   createCreditTransaction,
   listNameChangeRequests,
   updateNameChangeStatus,
-} from "@/lib/server/security/security-store";
+} from "@/lib/server/security/security-admin";
 import {
   attemptCashoutTransfer,
   forceFailCashout,

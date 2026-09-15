@@ -5,7 +5,7 @@ import {
   listContactChangeRequests,
   updateContactChangeStatus,
   verifyContactChangeCode,
-} from "@/lib/server/security/security-store";
+} from "@/lib/server/security/contact-changes";
 import { requireAdmin, AdminAuthError } from "@/lib/server/admin-auth";
 
 export const runtime = "nodejs";

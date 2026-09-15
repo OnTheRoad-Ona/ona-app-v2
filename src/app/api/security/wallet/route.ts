@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/server/auth-utils";
 import {
   getOrCreateWallet,
   listCreditTransactions,
-} from "@/lib/server/security/security-store";
+} from "@/lib/server/security/credit-wallets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

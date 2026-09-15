@@ -1,0 +1,18 @@
+export { isAppBackendOnline } from "@/lib/supabase/app-api";
+export type { MessageRow } from "@/lib/supabase/app-api";
+export { backendSignUp } from "@/lib/supabase/app-api";
+export { backendUpdateProfile } from "@/lib/supabase/app-api";
+export { backendSaveIdentityVerification } from "@/lib/supabase/app-api";
+export { backendSignInWithOtp } from "@/lib/supabase/app-api";
+export { backendSignInWithPhoneOtp } from "@/lib/supabase/app-api";
+export type { BackendSendOtpResult } from "@/lib/supabase/app-api";
+export { backendSendOtp } from "@/lib/supabase/app-api";
+export { backendSendPhoneOtp } from "@/lib/supabase/app-api";
+export { backendProfileVerifyOtp } from "@/lib/supabase/app-api";
+export { backendSignIn } from "@/lib/supabase/app-api";
+export { backendSwitchRole } from "@/lib/supabase/app-api";
+export { backendDualRoleFlags } from "@/lib/supabase/app-api";
+export { backendLogout } from "@/lib/supabase/app-api";
+export { backendSignOut } from "@/lib/supabase/app-api";
+export { backendGetSessionUserId } from "@/lib/supabase/app-api";
+export { backendLoadUserProfile } from "@/lib/supabase/app-api";

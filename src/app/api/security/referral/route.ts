@@ -4,7 +4,7 @@ import {
   getOrCreateReferralCode,
   createReferralEvent,
   listReferralEvents,
-} from "@/lib/server/security/security-store";
+} from "@/lib/server/security/referral-codes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,0 +1,10 @@
+export { backendCreateJob } from "@/lib/supabase/app-api";
+export { backendUpdateJobStatus } from "@/lib/supabase/app-api";
+export { backendFetchJobsForUser } from "@/lib/supabase/app-api";
+export { backendEnsureConversation } from "@/lib/supabase/app-api";
+export { backendFetchConversations } from "@/lib/supabase/app-api";
+export { backendSubscribeUserMessageInserts } from "@/lib/supabase/app-api";
+export { backendMarkMessagesRead } from "@/lib/supabase/app-api";
+export { backendSubscribeMessages } from "@/lib/supabase/app-api";
+export { backendSubscribeJobs } from "@/lib/supabase/app-api";
+export type { ProPresenceChangeReason } from "@/lib/supabase/app-api";

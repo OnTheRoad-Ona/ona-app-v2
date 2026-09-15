@@ -1,6 +1,6 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireUser } from "@/lib/server/auth-utils";
-import { listCashoutRequests } from "@/lib/server/security/security-store";
+import { listCashoutRequests } from "@/lib/server/security/cashout-requests";
 import { requestCashout } from "@/lib/server/security/cashout-engine";
 
 export const runtime = "nodejs";

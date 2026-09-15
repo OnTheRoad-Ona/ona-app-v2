@@ -1,6 +1,6 @@
 import { apiFail, apiOk } from "@/lib/server/api-json";
 import { requireAdmin, AdminAuthError } from "@/lib/server/admin-auth";
-import { logAdminAction } from "@/lib/server/security/security-store";
+import { logAdminAction } from "@/lib/server/security/admin-actions";
 import { createServiceSupabase } from "@/lib/supabase/server";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 
